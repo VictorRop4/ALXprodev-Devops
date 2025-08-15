@@ -1,28 +1,29 @@
 #!/bin/bash
 
-# Array of Pokémon names
-POKEMONS=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
-API_URL="https://pokeapi.co/api/v2/pokemon"
-OUTPUT_DIR="pokemon_data"
+POKEMON_NAME=$1
+OUTPUT_FILE="data.json"
+ERROR_FILE="errors.txt"
+MAX_RETRIES=3
+RETRY_COUNT=0
 
-# Create output directory if it does not exist
-mkdir -p "$OUTPUT_DIR"
+# Function to make API request
+fetch_pokemon_data() {
+    curl -s -f "https://pokeapi.co/api/v2/pokemon/${POKEMON_NAME}" -o "$OUTPUT_FILE"
+}
 
-# Loop through Pokémon list
-for POKEMON in "${POKEMONS[@]}"; do
-    echo "Fetching data for $POKEMON..."
-    
-    # Perform API request and store HTTP status code
-    RESPONSE=$(curl -s -w "%{http_code}" -o "$OUTPUT_DIR/${POKEMON}.json" "$API_URL/$POKEMON")
-    
-    if [ "$RESPONSE" -eq 200 ]; then
-        echo "Saved data to $OUTPUT_DIR/${POKEMON}.json ✅"
+# Retry logic
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if fetch_pokemon_data; then
+        echo "Successfully fetched data for $POKEMON_NAME."
+        exit 0
     else
-        echo "Failed to fetch $POKEMON (HTTP $RESPONSE) ❌"
-        rm -f "$OUTPUT_DIR/${POKEMON}.json"  # Remove incomplete file
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo "Attempt $RETRY_COUNT for $POKEMON_NAME failed. Retrying..."
+        sleep 2  # Wait before retry
     fi
-    
-    # Delay to avoid rate-limiting
-    sleep 1
 done
+
+# If all retries failed, log the error
+echo "Failed to fetch data for $POKEMON_NAME after $MAX_RETRIES attempts." >> "$ERROR_FILE"
+exit 1
 
